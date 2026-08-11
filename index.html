@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Video Player - GitHub Pages</title>
     
-    <!-- ดึงสไตล์จาก Cloudflare CDN ซึ่งเปิดได้จากทุกเครือข่ายอินเทอร์เน็ต ไม่โดนบล็อก -->
+    <!-- นำเข้าสไตล์ของ Video.js จากเซิร์ฟเวอร์สำรองที่เสถียรที่สุด -->
     <link href="https://cloudflare.com" rel="stylesheet" />
     
     <style>
@@ -26,15 +26,17 @@
 <body>
 
 <div class="video-container">
+    <!-- กำหนดตัวเล่นให้ถูกโครงสร้างของ Video.js -->
     <video id="my-video" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" width="100%" height="450">
         <source src="https://main.24playerhd.com/newplaylist/8da92998e83b1d45b018bd3d/8da92998e83b1d45b018bd3d.m3u8" type="application/x-mpegURL">
     </video>
 </div>
 
-<!-- ดึงสคริปต์หลักจาก Cloudflare CDN -->
+<!-- โดนบังคับให้โหลดสคริปต์หลักของ Video.js ก่อนที่คำสั่งทำงานจะเริ่ม -->
 <script src="https://cloudflare.com"></script>
 
 <script>
+    // สั่งให้เครื่องเล่นเริ่มทำงาน
     var player = videojs('my-video', {
         autoplay: false,
         controls: true,
