@@ -1,466 +1,781 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
 
-    <title>HLS Video Player</title>
+<meta charset="UTF-8">
 
-    <!-- Video.js CSS -->
-    <link
-        href="https://vjs.zencdn.net/8.23.4/video-js.css"
-        rel="stylesheet"
-    >
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0">
 
-    <style>
-        * {
-            box-sizing: border-box;
-        }
+<title>HLS Player</title>
 
-        html,
-        body {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            min-height: 100%;
-            background: #111;
-            color: white;
-            font-family: Arial, sans-serif;
-        }
+<style>
 
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
+* {
+    box-sizing: border-box;
+}
 
-        .container {
-            width: 100%;
-            max-width: 900px;
-            padding: 15px;
-        }
+html,
+body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: #111;
+    color: #fff;
+    font-family: Arial, sans-serif;
+}
 
-        .player-box {
-            width: 100%;
-            background: #000;
-        }
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
 
-        .video-js {
-            width: 100%;
-            height: auto;
-            aspect-ratio: 16 / 9;
-        }
+.container {
+    width: 100%;
+    max-width: 900px;
+    padding: 15px;
+}
 
-        .url-box {
-            display: flex;
-            gap: 8px;
-            margin-top: 15px;
-        }
+.player {
+    position: relative;
+    width: 100%;
+    background: #000;
+    aspect-ratio: 16 / 9;
+}
 
-        .url-box input {
-            flex: 1;
-            min-width: 0;
-            padding: 12px;
-            border: 1px solid #444;
-            border-radius: 6px;
-            background: #222;
-            color: white;
-            font-size: 14px;
-        }
+video {
+    width: 100%;
+    height: 100%;
+    display: block;
+    background: #000;
+}
 
-        .url-box button {
-            padding: 12px 20px;
-            border: 0;
-            border-radius: 6px;
-            background: #1677ff;
-            color: white;
-            font-size: 16px;
-            cursor: pointer;
-        }
+.controls-box {
+    display: flex;
+    gap: 8px;
+    margin-top: 15px;
+}
 
-        .url-box button:hover {
-            background: #4090ff;
-        }
+input {
+    flex: 1;
+    min-width: 0;
+    padding: 13px;
 
-        #status {
-            margin-top: 12px;
-            padding: 10px;
-            border-radius: 6px;
-            background: #222;
-            color: #ccc;
-            font-size: 14px;
-        }
+    background: #222;
+    color: white;
 
-        .vjs-big-play-button {
-            top: 50% !important;
-            left: 50% !important;
-            transform: translate(-50%, -50%);
-        }
-    </style>
+    border: 1px solid #444;
+    border-radius: 6px;
+
+    font-size: 14px;
+}
+
+button {
+    padding: 12px 20px;
+
+    border: 0;
+    border-radius: 6px;
+
+    background: #1677ff;
+    color: white;
+
+    font-size: 16px;
+
+    cursor: pointer;
+}
+
+button:hover {
+    background: #338aff;
+}
+
+button:active {
+    transform: scale(.97);
+}
+
+#status {
+
+    margin-top: 12px;
+
+    padding: 11px;
+
+    background: #222;
+
+    border-radius: 6px;
+
+    color: #ccc;
+
+    font-size: 14px;
+}
+
+.title {
+
+    margin-bottom: 10px;
+
+    font-size: 20px;
+    font-weight: bold;
+
+}
+
+</style>
+
 </head>
+
 
 <body>
 
 <div class="container">
 
-    <div class="player-box">
+    <div class="title">
+        HLS Player
+    </div>
+
+
+    <div class="player">
 
         <video
-            id="my-video"
-            class="video-js vjs-big-play-centered"
+            id="video"
             controls
-            preload="auto"
             playsinline
-        ></video>
+            preload="auto">
+        </video>
 
     </div>
 
-    <div class="url-box">
+
+    <div class="controls-box">
 
         <input
-            id="streamUrl"
-            type="text"
+            id="url"
             value="https://main.24playerhd.com/newplaylist/8da92998e83b1d45b018bd3d/8da92998e83b1d45b018bd3d.m3u8"
-        >
+            placeholder="ใส่ URL .m3u8">
 
-        <button id="loadBtn">
+        <button id="load">
             ▶ โหลด
         </button>
 
     </div>
 
+
     <div id="status">
-        กำลังเตรียมเครื่องเล่น...
+        กำลังเตรียม HLS.js...
     </div>
 
 </div>
 
 
 <!-- ==================================================
-     Video.js JavaScript
+     HLS.JS
      ================================================== -->
 
-<script src="https://vjs.zencdn.net/8.23.4/video.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.6.16"></script>
 
 
 <script>
 
-    // ==============================================
-    // URL ของช่อง
-    // ==============================================
+const video =
+    document.getElementById("video");
 
-    const DEFAULT_URL =
-        "https://main.24playerhd.com/newplaylist/8da92998e83b1d45b018bd3d/8da92998e83b1d45b018bd3d.m3u8";
+const urlInput =
+    document.getElementById("url");
 
+const loadButton =
+    document.getElementById("load");
 
-    // ==============================================
-    // สถานะ
-    // ==============================================
-
-    const statusBox =
-        document.getElementById("status");
-
-    const urlInput =
-        document.getElementById("streamUrl");
-
-    const loadButton =
-        document.getElementById("loadBtn");
+const statusBox =
+    document.getElementById("status");
 
 
-    // ==============================================
-    // ตรวจสอบ Video.js
-    // ==============================================
-
-    if (typeof videojs === "undefined") {
-
-        statusBox.innerHTML =
-            "❌ โหลด Video.js ไม่สำเร็จ";
-
-        console.error(
-            "Video.js ไม่ถูกโหลด"
-        );
-
-    } else {
-
-        console.log(
-            "Video.js Version:",
-            videojs.VERSION
-        );
-
-    }
+let hls = null;
 
 
-    // ==============================================
-    // สร้าง Player
-    // ==============================================
+/*
+========================================================
+สถานะ
+========================================================
+*/
 
-    const player = videojs(
-        "my-video",
-        {
+function status(text) {
 
-            controls: true,
+    statusBox.textContent = text;
 
-            autoplay: false,
+    console.log(text);
 
-            preload: "auto",
-
-            fluid: true,
-
-            responsive: true,
-
-            liveui: true,
-
-            html5: {
-
-                vhs: {
-
-                    overrideNative: true,
-
-                    withCredentials: false
-
-                },
-
-                nativeAudioTracks: false,
-
-                nativeVideoTracks: false
-
-            }
-
-        },
-
-        function () {
-
-            console.log(
-                "Video.js พร้อมใช้งาน"
-            );
-
-            statusBox.innerHTML =
-                "✅ Video.js พร้อมใช้งาน";
-
-        }
-    );
+}
 
 
-    // ==============================================
-    // โหลด HLS
-    // ==============================================
+/*
+========================================================
+ทำลาย HLS ตัวเก่า
+========================================================
+*/
 
-    function loadStream(url) {
+function destroyHLS() {
 
-        if (!url) {
-
-            statusBox.innerHTML =
-                "❌ ไม่พบ URL";
-
-            return;
-
-        }
-
-
-        console.log(
-            "กำลังโหลด:",
-            url
-        );
-
-
-        statusBox.innerHTML =
-            "⏳ กำลังโหลดสตรีม...";
-
+    if (hls) {
 
         try {
 
-            player.pause();
+            hls.destroy();
 
+        } catch (e) {
 
-            /*
-             * สำคัญ:
-             * ใช้ application/x-mpegURL
-             * เพื่อให้ Video.js VHS จัดการ HLS
-             */
-
-            player.src({
-
-                src: url,
-
-                type: "application/x-mpegURL"
-
-            });
-
-
-            player.ready(function () {
-
-                console.log(
-                    "Source พร้อม"
-                );
-
-            });
-
-
-        } catch (error) {
-
-            console.error(
-                "Load error:",
-                error
-            );
-
-            statusBox.innerHTML =
-                "❌ โหลดสตรีมไม่สำเร็จ";
+            console.warn(e);
 
         }
+
+        hls = null;
+
+    }
+
+}
+
+
+/*
+========================================================
+โหลด HLS
+========================================================
+*/
+
+function loadStream(url) {
+
+    if (!url) {
+
+        status("❌ ไม่มี URL");
+
+        return;
 
     }
 
 
-    // ==============================================
-    // กดโหลด
-    // ==============================================
+    destroyHLS();
 
-    loadButton.addEventListener(
-        "click",
+
+    /*
+    ล้าง source เดิม
+    */
+
+    video.pause();
+
+    video.removeAttribute("src");
+
+    video.load();
+
+
+    status("⏳ กำลังเชื่อมต่อสตรีม...");
+
+
+    /*
+    ====================================================
+    Safari / Browser ที่รองรับ HLS Native
+    ====================================================
+    */
+
+    if (
+        video.canPlayType(
+            "application/vnd.apple.mpegurl"
+        )
+    ) {
+
+        console.log(
+            "ใช้ Native HLS"
+        );
+
+
+        video.src = url;
+
+
+        video.addEventListener(
+            "loadedmetadata",
+            function nativeReady() {
+
+                status("▶ พร้อมเล่น");
+
+                video.play().catch(() => {});
+
+                video.removeEventListener(
+                    "loadedmetadata",
+                    nativeReady
+                );
+
+            }
+        );
+
+
+        return;
+
+    }
+
+
+    /*
+    ====================================================
+    HLS.js
+    ====================================================
+    */
+
+    if (
+        typeof Hls === "undefined"
+    ) {
+
+        status(
+            "❌ HLS.js โหลดไม่สำเร็จ"
+        );
+
+        return;
+
+    }
+
+
+    if (
+        !Hls.isSupported()
+    ) {
+
+        status(
+            "❌ Browser นี้ไม่รองรับ HLS"
+        );
+
+        return;
+
+    }
+
+
+    console.log(
+        "HLS.js version:",
+        Hls.version
+    );
+
+
+    /*
+    ====================================================
+    สร้าง HLS
+    ====================================================
+    */
+
+    hls = new Hls({
+
+        enableWorker: true,
+
+        lowLatencyMode: false,
+
+        backBufferLength: 30,
+
+        maxBufferLength: 30,
+
+        maxMaxBufferLength: 60,
+
+        manifestLoadingMaxRetry: 3,
+
+        manifestLoadingRetryDelay: 1000,
+
+        levelLoadingMaxRetry: 3,
+
+        levelLoadingRetryDelay: 1000,
+
+        fragLoadingMaxRetry: 3,
+
+        fragLoadingRetryDelay: 1000
+
+    });
+
+
+    /*
+    ====================================================
+    ต่อเข้ากับ video
+    ====================================================
+    */
+
+    hls.attachMedia(video);
+
+
+    /*
+    ====================================================
+    Media Attached
+    ====================================================
+    */
+
+    hls.on(
+        Hls.Events.MEDIA_ATTACHED,
         function () {
 
-            const url =
-                urlInput.value.trim();
+            console.log(
+                "Media attached"
+            );
 
-            loadStream(url);
+
+            status(
+                "⏳ กำลังโหลด playlist..."
+            );
+
+
+            hls.loadSource(url);
 
         }
     );
 
 
-    // ==============================================
-    // กด Enter ในช่อง URL
-    // ==============================================
+    /*
+    ====================================================
+    Manifest Parsed
+    ====================================================
+    */
 
-    urlInput.addEventListener(
-        "keydown",
-        function (event) {
+    hls.on(
+        Hls.Events.MANIFEST_PARSED,
+        function (
+            event,
+            data
+        ) {
 
-            if (event.key === "Enter") {
+            console.log(
+                "Manifest parsed",
+                data
+            );
+
+
+            const levels =
+                data.levels || [];
+
+
+            console.log(
+                "คุณภาพ:",
+                levels.length
+            );
+
+
+            status(
+                "▶ พร้อมเล่น"
+            );
+
+
+            /*
+            autoplay ถูกบล็อกในบาง browser
+            จึงลองเล่น แล้วปล่อยให้ user กด play ถ้าโดนบล็อก
+            */
+
+            video.play().catch(
+                function () {
+
+                    console.log(
+                        "Autoplay ถูก browser บล็อก"
+                    );
+
+                }
+            );
+
+        }
+    );
+
+
+    /*
+    ====================================================
+    LEVEL LOADED
+    ====================================================
+    */
+
+    hls.on(
+        Hls.Events.LEVEL_LOADED,
+        function (
+            event,
+            data
+        ) {
+
+            console.log(
+                "Level loaded",
+                data
+            );
+
+        }
+    );
+
+
+    /*
+    ====================================================
+    FRAGMENT LOADED
+    ====================================================
+    */
+
+    hls.on(
+        Hls.Events.FRAG_LOADED,
+        function () {
+
+            console.log(
+                "Segment loaded"
+            );
+
+        }
+    );
+
+
+    /*
+    ====================================================
+    ERROR
+    ====================================================
+    */
+
+    hls.on(
+        Hls.Events.ERROR,
+        function (
+            event,
+            data
+        ) {
+
+            console.error(
+                "HLS ERROR:",
+                data
+            );
+
+
+            /*
+            --------------------------------------------
+            Fatal error
+            --------------------------------------------
+            */
+
+            if (
+                data.fatal
+            ) {
+
+                switch (
+                    data.type
+                ) {
+
+
+                    /*
+                    ================================
+                    Network
+                    ================================
+                    */
+
+                    case Hls.ErrorTypes.NETWORK_ERROR:
+
+                        status(
+                            "❌ Network / CORS / Server error"
+                        );
+
+
+                        console.error(
+                            "Network error:",
+                            data
+                        );
+
+
+                        /*
+                        ลองโหลดใหม่
+                        */
+
+                        setTimeout(
+                            function () {
+
+                                if (hls) {
+
+                                    console.log(
+                                        "Retry HLS..."
+                                    );
+
+                                    hls.startLoad();
+
+                                }
+
+                            },
+                            2000
+                        );
+
+                        break;
+
+
+                    /*
+                    ================================
+                    Media
+                    ================================
+                    */
+
+                    case Hls.ErrorTypes.MEDIA_ERROR:
+
+                        status(
+                            "❌ Media error — กำลังกู้คืน..."
+                        );
+
+
+                        console.log(
+                            "Recover media"
+                        );
+
+
+                        if (hls) {
+
+                            hls.recoverMediaError();
+
+                        }
+
+                        break;
+
+
+                    /*
+                    ================================
+                    อื่น ๆ
+                    ================================
+                    */
+
+                    default:
+
+                        status(
+                            "❌ HLS เล่นไม่ได้"
+                        );
+
+
+                        destroyHLS();
+
+                        break;
+
+                }
+
+            }
+
+        }
+    );
+
+
+    /*
+    ====================================================
+    Video events
+    ====================================================
+    */
+
+    video.addEventListener(
+        "playing",
+        function () {
+
+            status(
+                "🟢 กำลังเล่น"
+            );
+
+        }
+    );
+
+
+    video.addEventListener(
+        "waiting",
+        function () {
+
+            status(
+                "⏳ กำลังบัฟเฟอร์..."
+            );
+
+        }
+    );
+
+
+    video.addEventListener(
+        "canplay",
+        function () {
+
+            status(
+                "▶ พร้อมเล่น"
+            );
+
+        }
+    );
+
+
+    video.addEventListener(
+        "error",
+        function () {
+
+            console.error(
+                "VIDEO ERROR:",
+                video.error
+            );
+
+
+            if (
+                video.error
+            ) {
+
+                status(
+                    "❌ Video error: " +
+                    video.error.message
+                );
+
+            }
+
+        }
+    );
+
+}
+
+
+/*
+========================================================
+ปุ่มโหลด
+========================================================
+*/
+
+loadButton.addEventListener(
+    "click",
+    function () {
+
+        const url =
+            urlInput.value.trim();
+
+        loadStream(url);
+
+    }
+);
+
+
+/*
+========================================================
+Enter
+========================================================
+*/
+
+urlInput.addEventListener(
+    "keydown",
+    function (event) {
+
+        if (
+            event.key === "Enter"
+        ) {
+
+            loadStream(
+                urlInput.value.trim()
+            );
+
+        }
+
+    }
+);
+
+
+/*
+========================================================
+เริ่มต้น
+========================================================
+*/
+
+window.addEventListener(
+    "load",
+    function () {
+
+        status(
+            "HLS.js พร้อมใช้งาน"
+        );
+
+
+        setTimeout(
+            function () {
 
                 loadStream(
                     urlInput.value.trim()
                 );
 
-            }
+            },
+            500
+        );
 
-        }
-    );
-
-
-    // ==============================================
-    // Player Events
-    // ==============================================
-
-    player.on(
-        "loadstart",
-        function () {
-
-            statusBox.innerHTML =
-                "⏳ กำลังเชื่อมต่อสตรีม...";
-
-            console.log(
-                "loadstart"
-            );
-
-        }
-    );
-
-
-    player.on(
-        "loadedmetadata",
-        function () {
-
-            statusBox.innerHTML =
-                "✅ โหลดข้อมูลสตรีมแล้ว";
-
-            console.log(
-                "loadedmetadata"
-            );
-
-        }
-    );
-
-
-    player.on(
-        "canplay",
-        function () {
-
-            statusBox.innerHTML =
-                "▶ พร้อมเล่น";
-
-            console.log(
-                "canplay"
-            );
-
-        }
-    );
-
-
-    player.on(
-        "playing",
-        function () {
-
-            statusBox.innerHTML =
-                "🟢 กำลังเล่น";
-
-            console.log(
-                "playing"
-            );
-
-        }
-    );
-
-
-    player.on(
-        "waiting",
-        function () {
-
-            statusBox.innerHTML =
-                "⏳ กำลังบัฟเฟอร์...";
-
-        }
-    );
-
-
-    player.on(
-        "error",
-        function () {
-
-            const error =
-                player.error();
-
-            console.error(
-                "Video.js Error:",
-                error
-            );
-
-
-            if (error) {
-
-                statusBox.innerHTML =
-                    "❌ เล่นไม่ได้: " +
-                    (error.message || "Unknown error");
-
-            } else {
-
-                statusBox.innerHTML =
-                    "❌ เกิดข้อผิดพลาดในการเล่น";
-
-            }
-
-        }
-    );
-
-
-    // ==============================================
-    // เริ่มโหลด URL
-    // ==============================================
-
-    loadStream(DEFAULT_URL);
-
+    }
+);
 
 </script>
 
