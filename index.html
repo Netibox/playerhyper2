@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video.js Player - 24PlayerHD</title>
+    
+    <!-- นำเข้า CSS ของ Video.js -->
+    <link href="https://zencdn.net" rel="stylesheet" />
+    
+    <style>
+        body {
+            background-color: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .video-container {
+            width: 100%;
+            max-width: 800px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="video-container">
+    <!-- ตัวเล่นวิดีโอ -->
+    <video id="my-video" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" width="100%" height="450">
+        <source src="https://main.24playerhd.com/newplaylist/8da92998e83b1d45b018bd3d/8da92998e83b1d45b018bd3d.m3u8" type="application/x-mpegURL">
+        <p class="vjs-no-js">
+            กรุณาเปิดใช้งาน JavaScript เพื่อรับชมวิดีโอ
+        </p>
+    </video>
+</div>
+
+<!-- นำเข้า JavaScript ของ Video.js -->
+<script src="https://zencdn.net"></script>
+
+<script>
+    // ตั้งค่าสั่งให้เครื่องเล่นทำงาน
+    var player = videojs('my-video', {
+        autoplay: false,
+        controls: true,
+        responsive: true,
+        fluid: true,
+        html5: {
+            vhs: {
+                withCredentials: true, // อนุญาตให้ส่ง Cookie/Session ไปพร้อมกับ Request
+                overrideNative: true
+            }
+        }
+    });
+
+    // ตรวจจับข้อผิดพลาด (Error Handling)
+    player.on('error', function() {
+        console.error('เกิดข้อผิดพลาดในการเล่นวิดีโอ:', player.error());
+        alert('ไม่สามารถเล่นลิงก์นี้ได้ ลิงก์อาจจะหมดอายุ หรือติดปัญหา CORS Block');
+    });
+</script>
+
+</body>
+</html>
