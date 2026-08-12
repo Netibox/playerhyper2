@@ -56,15 +56,21 @@ button {
 }
 button:hover { background: #338aff; }
 button:active { transform: scale(.97); }
+button:disabled {
+    background: #444;
+    cursor: not-allowed;
+}
 #status {
     margin-top: 12px;
     padding: 11px;
     background: #222;
     border-radius: 6px;
     color: #ccc;
-    font-size: 14px;
+    font-size: 13px;
     font-family: monospace;
-    line-height: 1.5;
+    line-height: 1.6;
+    max-height: 220px;
+    overflow-y: auto;
 }
 .title {
     margin-bottom: 10px;
@@ -87,7 +93,7 @@ button:active { transform: scale(.97); }
         <button id="load">▶ โหลด</button>
     </div>
 
-    <div id="status">กำลังเตรียม HLS.js...</div>
+    <div id="status">กำลังเตรียม...</div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.6.16"></script>
@@ -98,71 +104,135 @@ const loadButton = document.getElementById("load");
 const statusBox = document.getElementById("status");
 
 let hls = null;
-let currentHandlers = {}; // เก็บ event handlers ป้องกันการซ้อนทับ
+let isLoading = false;
+let loadTimer = null;
+let fallbackTimer = null;
 
-function status(text) {
+// ตรวจจับ Browser จริง ๆ
+const ua = navigator.userAgent;
+const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+const isIOS = /iPad|iPhone|iPod/.test(ua);
+const isEdge = /Edg/.test(ua);
+const isChrome = /Chrome/.test(ua) && !isEdge;
+
+function log(text) {
     const time = new Date().toLocaleTimeString("th-TH");
-    statusBox.innerHTML = `[${time}] ${text}`;
-    console.log(text);
+    const line = `[${time}] ${text}`;
+    console.log(line);
+    const arr = statusBox.innerHTML.split('<br>').filter(x => x.trim());
+    arr.push(line.replace(/</g, '&lt;'));
+    if (arr.length > 25) arr.shift();
+    statusBox.innerHTML = arr.join('<br>');
 }
 
-// ล้าง Event Listener เก่าทั้งหมดก่อนโหลดใหม่
-function clearVideoListeners() {
-    const events = ["loadedmetadata", "playing", "waiting", "canplay", "error", "stalled", "ended"];
-    events.forEach(evt => {
-        if (currentHandlers[evt]) {
-            video.removeEventListener(evt, currentHandlers[evt]);
-            delete currentHandlers[evt];
-        }
-    });
+function clearTimers() {
+    if (loadTimer) { clearTimeout(loadTimer); loadTimer = null; }
+    if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
 }
 
 function destroyHLS() {
     if (hls) {
-        try { hls.destroy(); } catch (e) { console.warn(e); }
+        try { hls.destroy(); } catch (e) {}
         hls = null;
     }
 }
 
-function loadStream(url) {
-    if (!url) {
-        status("❌ กรุณาใส่ URL");
-        return;
-    }
-
-    // ล้างของเก่าทั้งหมด
+function resetPlayer() {
+    clearTimers();
     destroyHLS();
-    clearVideoListeners();
     video.pause();
     video.removeAttribute("src");
     video.load();
+}
 
-    status("⏳ กำลังเชื่อมต่อ...");
-
-    // ========== Safari / iOS Native HLS ==========
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        status("🍎 ใช้ Native HLS (Safari)");
-        video.src = url;
-
-        currentHandlers.loadedmetadata = function() {
-            status("▶ พร้อมเล่น (Native)");
-            video.play().catch(() => {});
-        };
-        video.addEventListener("loadedmetadata", currentHandlers.loadedmetadata);
+function loadStream(url) {
+    if (!url) {
+        log("❌ กรุณาใส่ URL");
+        return;
+    }
+    if (isLoading) {
+        log("⏳ รอโหลดปัจจุบันให้เสร็จก่อน...");
         return;
     }
 
-    // ========== HLS.js ==========
+    isLoading = true;
+    loadButton.disabled = true;
+    resetPlayer();
+    log("⏳ เริ่มโหลด...");
+
+    // รอ HLS.js โหลด
     if (typeof Hls === "undefined") {
-        status("❌ HLS.js โหลดไม่สำเร็จ ตรวจสอบอินเทอร์เน็ต");
-        return;
-    }
-    if (!Hls.isSupported()) {
-        status("❌ Browser นี้ไม่รองรับ HLS");
+        log("⏳ รอ HLS.js...");
+        loadTimer = setTimeout(() => {
+            isLoading = false;
+            loadButton.disabled = false;
+            loadStream(url);
+        }, 1500);
         return;
     }
 
-    console.log("HLS.js version:", Hls.version);
+    // ========== ใช้ Native HLS เฉพาะ Safari / iOS จริง ๆ เท่านั้น ==========
+    // Edge/Chrome ที่มี Extension อาจรายงานว่ารองรับ แต่เล่นไม่ได้
+    const canNative = video.canPlayType("application/vnd.apple.mpegurl") !== "";
+    
+    if (canNative && (isSafari || isIOS)) {
+        log("🍎 Native HLS (Safari)");
+        video.src = url;
+        
+        let worked = false;
+        const onMeta = () => {
+            worked = true;
+            log("▶ Native พร้อมเล่น");
+            video.play().catch(() => log("▶ กด Play เอง"));
+            cleanup();
+            finish();
+        };
+        const onErr = () => {
+            if (worked) return;
+            log("❌ Native ล้มเหลว → ลอง HLS.js");
+            cleanup();
+            video.removeAttribute("src");
+            video.load();
+            loadWithHLSjs(url);
+        };
+        const cleanup = () => {
+            video.removeEventListener("loadedmetadata", onMeta);
+            video.removeEventListener("error", onErr);
+            clearTimers();
+        };
+        
+        video.addEventListener("loadedmetadata", onMeta);
+        video.addEventListener("error", onErr);
+        
+        // ถ้า 6 วิไม่ตอบสนอง ให้ fallback
+        fallbackTimer = setTimeout(() => {
+            if (!worked) {
+                log("⚠️ Native ไม่ตอบสนอง → ใช้ HLS.js");
+                cleanup();
+                video.removeAttribute("src");
+                video.load();
+                loadWithHLSjs(url);
+            }
+        }, 6000);
+        return;
+    }
+
+    // ถ้าเป็น Edge/Chrome แต่รายงานว่ารองรับ Native ให้ข้ามไป HLS.js เลย
+    if (canNative && !isSafari && !isIOS) {
+        log("⚠️ ไม่ใช่ Safari แต่รายงาน Native → ใช้ HLS.js แทน");
+    }
+
+    loadWithHLSjs(url);
+}
+
+function loadWithHLSjs(url) {
+    if (!Hls.isSupported()) {
+        log("❌ Browser ไม่รองรับ HLS.js");
+        finish();
+        return;
+    }
+
+    log("🔧 HLS.js v" + Hls.version);
 
     hls = new Hls({
         enableWorker: true,
@@ -170,129 +240,102 @@ function loadStream(url) {
         backBufferLength: 30,
         maxBufferLength: 30,
         maxMaxBufferLength: 60,
-        manifestLoadingMaxRetry: 3,
-        manifestLoadingRetryDelay: 2000,
-        levelLoadingMaxRetry: 3,
-        levelLoadingRetryDelay: 2000,
+        manifestLoadingMaxRetry: 2,
+        manifestLoadingRetryDelay: 3000,
+        levelLoadingMaxRetry: 2,
+        levelLoadingRetryDelay: 3000,
         fragLoadingMaxRetry: 3,
-        fragLoadingRetryDelay: 2000,
-        // สำคัญ: ป้องกัน CORS ที่มาจาก redirect
-        xhrSetup: function(xhr, url) {
-            xhr.withCredentials = false;
-        }
+        fragLoadingRetryDelay: 3000,
+        xhrSetup: function(xhr) { xhr.withCredentials = false; }
     });
 
     hls.attachMedia(video);
 
-    // Event: Media Attached
-    hls.on(Hls.Events.MEDIA_ATTACHED, function() {
-        console.log("Media attached");
-        status("⏳ กำลังโหลด playlist...");
+    hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+        log("⏳ โหลด Playlist...");
         hls.loadSource(url);
     });
 
-    // Event: Manifest Parsed
-    hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
-        console.log("Manifest parsed:", data);
-        const levels = data.levels || [];
-        status(`▶ พร้อมเล่น | ความละเอียด: ${levels.length} ระดับ`);
-        video.play().catch(() => {
-            status("▶ พร้อมเล่น (กด Play เอง)");
-        });
+    hls.on(Hls.Events.MANIFEST_PARSED, (evt, data) => {
+        const lv = data.levels || [];
+        log(`✅ Playlist OK (${lv.length} คุณภาพ)`);
+        video.play().catch(() => log("▶ กด Play เอง"));
+        finish();
     });
 
-    // Event: Level Loaded
-    hls.on(Hls.Events.LEVEL_LOADED, function(event, data) {
-        console.log("Level loaded, duration:", data.details.totalduration);
+    hls.on(Hls.Events.LEVEL_LOADED, (evt, data) => {
+        log(`📦 โหลดแล้ว ${Math.round(data.details.totalduration)} วินาที`);
     });
 
-    // Event: Fragment Loaded
-    hls.on(Hls.Events.FRAG_LOADED, function() {
-        console.log("Segment loaded");
-    });
-
-    // Event: Error (แก้ไขหลัก)
-    hls.on(Hls.Events.ERROR, function(event, data) {
-        console.error("HLS ERROR:", data);
-
-        if (data.fatal) {
-            switch (data.type) {
-                case Hls.ErrorTypes.NETWORK_ERROR:
-                    // แยกประเภท Network Error
-                    let errMsg = "❌ Network Error";
-                    if (data.response && data.response.code === 0) {
-                        errMsg = "❌ CORS หรือการเชื่อมต่อถูกบล็อก (ตรวจสอบ Console)";
-                    } else if (data.response && data.response.code === 404) {
-                        errMsg = "❌ ไม่พบไฟล์ (404) — ลิงก์อาจหมดอายุ";
-                    } else if (data.response && data.response.code >= 500) {
-                        errMsg = `❌ Server Error (${data.response.code})`;
-                    }
-                    status(errMsg);
-                    console.error("Detail:", data);
-
-                    // ลอง retry
-                    setTimeout(() => {
-                        if (hls) {
-                            console.log("Retrying...");
-                            status("🔄 ลองโหลดใหม่...");
-                            hls.startLoad();
-                        }
-                    }, 3000);
-                    break;
-
-                case Hls.ErrorTypes.MEDIA_ERROR:
-                    status("❌ Media error — กำลังกู้คืน...");
-                    if (hls) hls.recoverMediaError();
-                    break;
-
-                default:
-                    status("❌ HLS เล่นไม่ได้ (Fatal Error)");
-                    destroyHLS();
-                    break;
-            }
-        } else {
-            // Non-fatal error
-            if (data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR) {
-                status("⚠️ โหลด segment ไม่สำเร็จ (ลองใหม่อัตโนมัติ)");
-            }
+    hls.on(Hls.Events.ERROR, (evt, data) => {
+        console.error(data);
+        if (!data.fatal) return;
+        
+        switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+                let m = "❌ Network";
+                if (!data.response) {
+                    m = "❌ เชื่อมต่อไม่ได้ (Offline หรือถูกบล็อก)";
+                } else if (data.response.code === 0) {
+                    m = "❌ CORS ถูกบล็อก หรือไม่มีการตอบสนอง";
+                } else if (data.response.code === 404) {
+                    m = "❌ 404 ไม่พบไฟล์ (ลิงก์หมดอายุ?)";
+                } else if (data.response.code >= 500) {
+                    m = `❌ Server Error ${data.response.code}`;
+                } else {
+                    m = `❌ HTTP ${data.response.code}`;
+                }
+                log(m);
+                
+                if (data.response && data.response.code === 0) {
+                    log("💡 แนะนำ: ติดตั้ง Extension 'CORS Unblock'");
+                }
+                
+                if (!hls._retried) {
+                    hls._retried = true;
+                    log("🔄 Retry อัตโนมัติ...");
+                    setTimeout(() => hls.startLoad(), 3000);
+                } else {
+                    finish();
+                }
+                break;
+                
+            case Hls.ErrorTypes.MEDIA_ERROR:
+                log("❌ Media Error → กู้คืน...");
+                hls.recoverMediaError();
+                break;
+                
+            default:
+                log("❌ Fatal: " + data.details);
+                finish();
+                destroyHLS();
         }
     });
 
-    // Video events
-    currentHandlers.playing = () => status("🟢 กำลังเล่น");
-    currentHandlers.waiting = () => status("⏳ กำลังบัฟเฟอร์...");
-    currentHandlers.canplay = () => status("▶ พร้อมเล่น");
-    currentHandlers.stalled = () => status("⏳ เน็ตช้า กำลังรอ...");
-    currentHandlers.ended = () => status("⏹️ จบแล้ว");
-    currentHandlers.error = function() {
-        if (video.error) {
-            status(`❌ Video error: ${video.error.message} (code ${video.error.code})`);
-        }
-    };
-
-    Object.keys(currentHandlers).forEach(evt => {
-        video.addEventListener(evt, currentHandlers[evt]);
+    video.addEventListener("playing", () => log("▶ เล่นอยู่"));
+    video.addEventListener("waiting", () => log("⏳ บัฟเฟอร์..."));
+    video.addEventListener("canplay", () => log("✅ พร้อมเล่น"));
+    video.addEventListener("stalled", () => log("⏳ เน็ตช้า..."));
+    video.addEventListener("error", () => {
+        const e = video.error;
+        if (e) log(`❌ Video Error ${e.code}: ${e.message}`);
+        finish();
     });
 }
 
-// ปุ่มโหลด
-loadButton.addEventListener("click", function() {
-    loadStream(urlInput.value.trim());
+function finish() {
+    isLoading = false;
+    loadButton.disabled = false;
+}
+
+loadButton.addEventListener("click", () => loadStream(urlInput.value.trim()));
+urlInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") loadStream(urlInput.value.trim());
 });
 
-// Enter
-urlInput.addEventListener("keydown", function(event) {
-    if (event.key === "Enter") {
-        loadStream(urlInput.value.trim());
-    }
-});
-
-// เริ่มต้นอัตโนมัติ
-window.addEventListener("load", function() {
-    status("HLS.js พร้อมใช้งาน — กำลังโหลดอัตโนมัติ...");
-    setTimeout(() => {
-        loadStream(urlInput.value.trim());
-    }, 800);
+window.addEventListener("load", () => {
+    log("🚀 Browser: " + ua.substring(0, 40));
+    setTimeout(() => loadStream(urlInput.value.trim()), 600);
 });
 </script>
 </body>
