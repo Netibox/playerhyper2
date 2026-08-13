@@ -11,7 +11,7 @@
     {
      "name": "ทวงคืน Fearless Love (2022)",
      "image": "https://hd.movie285.com/wp-content/uploads/2023/06/Fearless-Love-2022.webp",
-     "url": "https://ezycdn.stream/playlist-8pnhaa1q-master.m3u8",
+     "url": "https://main.24playerhd.com/m3u8/d96b9036a3a5a97f0430a0c9/d96b9036a3a5a97f0430a0c9438.m3u8",
      "referer": "https://hd.movie285.com/"
     }
    ]
